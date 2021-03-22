@@ -1,8 +1,7 @@
 # FileSystem
 ## IOSystem - Bohdan Volokhonenko
 ## File system:
-   * init , create, read - Bohdan Volokhonenko
-   * write- 
-   * seek - 
+   * read, write - Bohdan Volokhonenko
+   * create, destroy, open, close - Stas Dombrovskyi
+   * lseek, directory  -  Ivan Krasnoschok
 ## Shell - Ivan Krasnoschok
-##
