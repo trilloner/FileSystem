@@ -41,6 +41,10 @@ public class OpenFileTable {
         return getStatus();
     }
 
+    public int writeByte(byte[] bytes) {
+        return writeByte(bytes[0]);
+    }
+
     public boolean seek(int index) {
         if (index <= length && length >= 0) {
             currentPosition = index;
@@ -70,6 +74,7 @@ public class OpenFileTable {
     }
 
     public int getStatus() {
+
         if (currentPosition == buffer.length * 3) // max length of file (3 block)
             return 4;
         else if (currentPosition == buffer.length * 2 && currentPosition == length)
