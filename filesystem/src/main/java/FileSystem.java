@@ -4,7 +4,7 @@ public class FileSystem {
 
     private IOSystem ioSystem;
     private OpenFileTable[] openFileTables;
-    private byte[] buffer;
+    private UnsignedByteArray buffer;
     private int[] descriptor;
     private static final int MAX_OPEN_FILES = 4;
     private static final int DESCRIPTOR_SIZE = 4;
@@ -14,7 +14,7 @@ public class FileSystem {
 
         ioSystem = new IOSystem();
         openFileTables = new OpenFileTable[MAX_OPEN_FILES];
-        buffer = new byte[bufferSize];
+        buffer = new UnsignedByteArray(bufferSize);
         descriptor = new int[DESCRIPTOR_SIZE];
 
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
@@ -22,7 +22,7 @@ public class FileSystem {
         }
     }
 
-    public int read(int index, byte[] memArea, int count) {
+    public int read(int index, UnsignedByteArray memArea, int count) {
         int i = 0;
         if (index > 3 || index < 0) {
             System.out.println("Read: Out of bound exception.");
@@ -47,7 +47,7 @@ public class FileSystem {
         return count;
     }
 
-    public int write(int index, byte[] memArea, int count) {
+    public int write(int index, UnsignedByteArray memArea, int count) {
         if (index > 3 || index < 0) {
             System.out.println("Write: Out of bound exception.");
             return -1;
@@ -81,7 +81,7 @@ public class FileSystem {
                     return count;
                 }
                 ioSystem.readBlock(0, buffer);
-                buffer[bitmapIndex / 32] = buffer[bitmapIndex / 32] ; // TODO upgrade
+                //buffer[bitmapIndex / 32] = buffer[bitmapIndex / 32] ; // TODO upgrade
                 ioSystem.writeBlock(0, buffer);
                 descriptor[status] = bitmapIndex;
                 descriptor[0] = openFileTables[index].getCurrentPosition();
@@ -94,19 +94,56 @@ public class FileSystem {
         return count;
     }
 
+    public int lseek(int index, int pos) {
+        if (index > 3 || index < 0) {
+            System.out.println("Lseek: Index out of bound.");
+            return -1;
+        }
+        if (openFileTables[index].getDescriptorIndex() == -1) {
+            System.out.println("Lseek: File not opened.");
+            return -1;
+        }
+        if (openFileTables[index].getLength() + 1 < pos || pos < 0 || pos == 64 * 3) {
+            System.out.println("Lseek: Out of index.");
+            return -1;
+        }
+
+        int descriptorIndex = openFileTables[index].getDescriptorIndex();
+        getDescriptor(descriptorIndex);
+
+        int currentBlock = openFileTables[index].getDescriptorIndex();
+        int status = openFileTables[index].getStatus();
+
+        if (status == 0) {
+            ioSystem.writeBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
+        } else {
+            if (status != 1 && status != -1) {
+                ioSystem.writeBlock(descriptor[currentBlock - 1], openFileTables[index].getBuffer());
+            }
+        }
+        openFileTables[index].seek(pos);
+        status = openFileTables[index].getStatus();
+        currentBlock = openFileTables[index].getCurrentBlock();
+        if (status <= 0) {
+            ioSystem.readBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
+        }
+        return pos;
+    }
+
 
     private int[] getDescriptor(int descriptorIndex) {
         ioSystem.readBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
         for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
-            descriptor[i] = buffer[i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE];
+            descriptor[i] = buffer.get(i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE);
         }
         return descriptor;
     }
 
     private void setDescriptor(int descriptorIndex) {
         ioSystem.readBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
-        for (int i = 0; i < DESCRIPTOR_SIZE; i++)
-            buffer[i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE] = (byte) descriptor[i];
+        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
+            buffer.set(i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE, descriptor[i]);
+        }
         ioSystem.writeBlock(1 + (descriptorIndex / 4), buffer);
     }
 
@@ -115,7 +152,7 @@ public class FileSystem {
         ioSystem.readBlock(0, buffer);
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 32; j++) {
-                tmp = buffer[i] ;// TODO upgrade
+                tmp = buffer.get(i) ;// TODO upgrade
                 if (tmp == 0) {
                     return i * 32 + j;
                 }

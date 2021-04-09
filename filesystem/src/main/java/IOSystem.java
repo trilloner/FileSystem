@@ -1,25 +1,27 @@
 public class IOSystem {
-    private final int LENGTH = 64;
-    private final int BLOCK_SIZE = 64;
-    private final byte[][] ldisk;
+    private final static int LENGTH = 64;
+    private final static int BLOCK_SIZE = 64;
+    private final UnsignedByteArray[] ldisk;
 
     public IOSystem() {
-        this.ldisk = new byte[LENGTH][BLOCK_SIZE];
+        this(LENGTH, BLOCK_SIZE);
     }
-
-    public IOSystem(int l, int b) {
-        this.ldisk = new byte[l][b];
-    }
-
-    public void readBlock(int i, byte[] p) {
-        for (int j = 0; j < p.length; j++) {
-            p[j] = this.ldisk[i][j];
+    public IOSystem(int length, int blockSize) {
+        ldisk = new UnsignedByteArray[length];
+        for (int i = 0; i < length; i++) {
+            ldisk[i] = new UnsignedByteArray(blockSize);
         }
     }
 
-    public void writeBlock(int i, byte[] p) {
-        for (int j = 0; j < p.length; j++) {
-            this.ldisk[i][j] = p[j];
+    public void readBlock(int i, UnsignedByteArray p) {
+        for (int j = 0; j < p.length(); j++) {
+            p.set(j, ldisk[i].get(j));
+        }
+    }
+
+    public void writeBlock(int i, UnsignedByteArray p) {
+        for (int j = 0; j < p.length(); j++) {
+            ldisk[i].set(j, p.get(j));
         }
     }
 }
