@@ -1,5 +1,3 @@
-import java.util.Arrays;
-
 public class UnsignedByteArray {
     private final byte[] array;
 
@@ -19,7 +17,14 @@ public class UnsignedByteArray {
         return this.array.length;
     }
 
-    public boolean equals(UnsignedByteArray other) {
+    @Override
+    public boolean equals(Object obj) {
+        if (!(this.getClass() == obj.getClass())) {
+            return false;
+        }
+
+        UnsignedByteArray other = (UnsignedByteArray) obj;
+
         if (this.length() != other.length()) {
             return false;
         }
@@ -45,5 +50,18 @@ public class UnsignedByteArray {
 
     public UnsignedByteArray subArray(int toIndex) {
         return subArray(0, toIndex);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder stringBuilder = new StringBuilder("{");
+
+        int i = 0;
+        for (; i < this.length() - 1; i++) {
+            stringBuilder.append(this.get(i)).append(", ");
+        }
+        stringBuilder.append(this.get(i)).append("}");
+
+        return stringBuilder.toString();
     }
 }
