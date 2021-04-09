@@ -3,7 +3,7 @@ public class OpenFileTable {
     private UnsignedByteArray buffer;
     private int descriptorIndex;
     private int length;
-    private static final int DEFAULT_VALUE = -128;
+    private static final int DEFAULT_VALUE = 0;
 
     public OpenFileTable(int bufferSize) {
         this.buffer = new UnsignedByteArray(bufferSize);

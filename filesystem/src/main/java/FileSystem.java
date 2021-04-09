@@ -1,5 +1,3 @@
-import java.util.Arrays;
-
 public class FileSystem {
 
     private IOSystem ioSystem;
@@ -20,6 +18,81 @@ public class FileSystem {
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
             openFileTables[i] = new OpenFileTable(bufferSize);
         }
+    }
+
+    public boolean create(UnsignedByteArray fName) {
+        int descriptorIndex;
+
+        if (searchDirectory(fName) != openFileTables[0].getLength()) {
+            System.out.println("Error: File already exists");
+            return false;
+        }
+
+        descriptorIndex = allocDescriptor();
+
+        if (descriptorIndex == -1) {
+            System.out.println("Error: Descriptor is already taken");
+            return false;
+        }
+
+        allocDirectory();
+
+        write(0, fName, fName.length());
+        write(0, intToBytes(descriptorIndex), 1);
+
+        setDescriptor(descriptorIndex);
+
+        return true;
+    }
+
+    private UnsignedByteArray intToBytes(int temp) {
+        UnsignedByteArray array = new UnsignedByteArray(4);
+        array.set(3, temp);
+        temp >>= 8;
+        array.set(2, temp);
+        temp >>= 8;
+        array.set(1, temp);
+        temp >>= 8;
+        array.set(0, temp);
+
+        return array;
+    }
+
+    private int searchDirectory(UnsignedByteArray dName) {
+        lseek(0, 0);
+        UnsignedByteArray temp = new UnsignedByteArray(8);
+
+        while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
+            read(0, temp, 8);
+
+            if (dName.equals(temp.subArray(4))) {
+                lseek(0, openFileTables[0].getCurrentPosition() - 8);
+                return openFileTables[0].getCurrentPosition();
+            }
+        }
+        return -1;
+    }
+
+    private int allocDescriptor() {
+        for (int i = 0; i < 3; i++) {
+            ioSystem.readBlock(i + 1, buffer);
+            for (int j = 0; j < buffer.length() / DESCRIPTOR_SIZE; j++) {
+                if (buffer.get(j * DESCRIPTOR_SIZE + 1) == 0)
+                    return (i * buffer.length() / DESCRIPTOR_SIZE) + j;
+            }
+        }
+        return -1;
+    }
+
+    private int allocDirectory() {
+        lseek(0, 0);
+        UnsignedByteArray temp = new UnsignedByteArray(4);
+        searchDirectory(temp);
+
+        if (openFileTables[0].getCurrentPosition() == buffer.length() * 3) {
+            return -1;
+        }
+        return openFileTables[0].getCurrentPosition();
     }
 
     public int read(int index, UnsignedByteArray memArea, int count) {
@@ -95,7 +168,7 @@ public class FileSystem {
     }
 
     public int lseek(int index, int pos) {
-        if (index > 3 || index < 0) {
+        if (index > (MAX_OPEN_FILES - 1) || index < 0) {
             System.out.println("Lseek: Index out of bound.");
             return -1;
         }
@@ -103,7 +176,7 @@ public class FileSystem {
             System.out.println("Lseek: File not opened.");
             return -1;
         }
-        if (openFileTables[index].getLength() + 1 < pos || pos < 0 || pos == 64 * 3) {
+        if (openFileTables[index].getLength() + 1 < pos || pos < 0 || pos == buffer.length() * 3) {
             System.out.println("Lseek: Out of index.");
             return -1;
         }
@@ -152,7 +225,7 @@ public class FileSystem {
         ioSystem.readBlock(0, buffer);
         for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 32; j++) {
-                tmp = buffer.get(i) ;// TODO upgrade
+                tmp = buffer.get(i);// TODO upgrade
                 if (tmp == 0) {
                     return i * 32 + j;
                 }
