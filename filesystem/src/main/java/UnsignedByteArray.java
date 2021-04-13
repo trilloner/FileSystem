@@ -1,3 +1,5 @@
+import java.nio.ByteBuffer;
+
 public class UnsignedByteArray {
     private final byte[] array;
 
@@ -55,6 +57,29 @@ public class UnsignedByteArray {
 
     public UnsignedByteArray subArray(int toIndex) {
         return subArray(0, toIndex);
+    }
+
+    public static UnsignedByteArray fromInt(int temp) {
+        UnsignedByteArray array = new UnsignedByteArray(4);
+
+        for (int i = 3; i >= 0; i--) {
+            array.set(i, temp);
+            temp >>= 8;
+        }
+
+        return array;
+    }
+
+    public Integer toInt() {
+        if (length() == 0 || length() > 4) {
+            return null;
+        }
+
+        byte[] array = new byte[4];
+        for (int i = 0; i < this.length(); i++) {
+            array[i + 4 - this.length()] = this.array[i];
+        }
+        return ByteBuffer.wrap(array).getInt();
     }
 
     @Override
