@@ -1,3 +1,5 @@
+import java.nio.ByteBuffer;
+
 public class FileSystem {
 
     private IOSystem ioSystem;
@@ -38,24 +40,77 @@ public class FileSystem {
         allocDirectory();
 
         write(0, fName, fName.length());
-        write(0, intToBytes(descriptorIndex), 1);
+        write(0, UnsignedByteArray.fromInt(descriptorIndex), 1);
 
         setDescriptor(descriptorIndex);
 
         return true;
     }
 
-    private UnsignedByteArray intToBytes(int temp) {
-        UnsignedByteArray array = new UnsignedByteArray(4);
-        array.set(3, temp);
-        temp >>= 8;
-        array.set(2, temp);
-        temp >>= 8;
-        array.set(1, temp);
-        temp >>= 8;
-        array.set(0, temp);
+    public int open(UnsignedByteArray fName) {
+        lseek(0, 0);
+        int descriptorIndex;
 
-        return array;
+        int directoryIndex = searchDirectory(fName);
+
+        if (directoryIndex == openFileTables[0].getLength()) {
+            System.out.println("Error: File not already exists");
+            return -1;
+        }
+
+        read(0, buffer, 8);
+        descriptorIndex = buffer.subArray(4, 8).toInt();
+        descriptor = getDescriptor(descriptorIndex);
+
+        for (int i = 1; i < 4; i++) {
+            if (openFileTables[i].getDescriptorIndex() == descriptorIndex) {
+                System.out.println("Error: File already opened");
+                return -1;
+            }
+        }
+
+        for (int i = 1; i < 4; i++) {
+            if (openFileTables[i].getDescriptorIndex() == -1) {
+                openFileTables[i].init(descriptorIndex, descriptor[0]);
+                return i;
+            }
+        }
+
+        System.out.println("Error: OpenFileTable is full");
+        return -1;
+    }
+
+    public int close(int index) {
+        if (index > 3 || index < 0) {
+            System.out.println("Index out of bound");
+            return -1;
+        }
+
+        int descriptorIndex, currentBlock, status;
+
+        if (openFileTables[index].getDescriptorIndex() != -1) {
+            descriptorIndex = openFileTables[index].getDescriptorIndex();
+            descriptor[0] = openFileTables[index].getLength();
+
+            setDescriptor(descriptorIndex);
+
+            currentBlock = openFileTables[index].getCurrentBlock();
+            status = openFileTables[index].getStatus();
+            if (status == 1) {
+                openFileTables[index].init();
+                return index;
+            } else if (status > 1 || status < -1) {
+                currentBlock--;
+                ioSystem.writeBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
+            } else {
+                ioSystem.writeBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
+            }
+            openFileTables[index].init();
+            return index;
+        } else {
+            System.out.println("Error: File is not opened");
+            return -1;
+        }
     }
 
     private int searchDirectory(UnsignedByteArray dName) {
