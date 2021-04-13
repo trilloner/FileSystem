@@ -12,6 +12,17 @@ public class OpenFileTable {
         this.length = -1;
     }
 
+    public void init() {
+        init(-1, -1);
+    }
+
+    public void init(int descriptorIndex, int length) {
+        initBuffer();
+        this.currentPosition = 0;
+        this.descriptorIndex = descriptorIndex;
+        this.length = length;
+    }
+
     public void initBuffer() {
         for (int i = 0; i < buffer.length(); i++) {
             buffer.set(i, DEFAULT_VALUE);
