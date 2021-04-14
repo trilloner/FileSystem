@@ -7,6 +7,13 @@ public class UnsignedByteArray {
         this.array = new byte[length];
     }
 
+    public UnsignedByteArray(String asciiString) {
+        this(asciiString.length());
+        for (int i = 0; i < asciiString.length(); i++) {
+            this.set(i, asciiString.charAt(i));
+        }
+    }
+
     public void set(int index, int value) {
         this.array[index] = (byte) (value & 0xff);
     }
@@ -80,6 +87,14 @@ public class UnsignedByteArray {
             array[i + 4 - this.length()] = this.array[i];
         }
         return ByteBuffer.wrap(array).getInt();
+    }
+
+    public String toAsciiString() {
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 0; i < this.length(); i++) {
+            stringBuilder.append((char)this.get(i));
+        }
+        return stringBuilder.toString();
     }
 
     @Override
