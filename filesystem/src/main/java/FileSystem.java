@@ -20,10 +20,13 @@ public class FileSystem {
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
             openFileTables[i] = new OpenFileTable(bufferSize);
         }
+        openFileTables[0].init(0, -1);
     }
 
     public boolean create(UnsignedByteArray fName) {
         int descriptorIndex;
+
+        fName = fName.fillToLength(4);
 
         if (searchDirectory(fName) != openFileTables[0].getLength()) {
             System.out.println("Error: File already exists");
@@ -40,7 +43,7 @@ public class FileSystem {
         allocDirectory();
 
         write(0, fName, fName.length());
-        write(0, UnsignedByteArray.fromInt(descriptorIndex), 1);
+        write(0, UnsignedByteArray.fromInt(descriptorIndex), 4);
 
         setDescriptor(descriptorIndex);
 
@@ -48,6 +51,7 @@ public class FileSystem {
     }
 
     public int open(UnsignedByteArray fName) {
+        fName = fName.fillToLength(4);
         lseek(0, 0);
         int descriptorIndex;
 
@@ -62,14 +66,14 @@ public class FileSystem {
         descriptorIndex = buffer.subArray(4, 8).toInt();
         descriptor = getDescriptor(descriptorIndex);
 
-        for (int i = 1; i < 4; i++) {
+        for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == descriptorIndex) {
                 System.out.println("Error: File already opened");
                 return -1;
             }
         }
 
-        for (int i = 1; i < 4; i++) {
+        for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == -1) {
                 openFileTables[i].init(descriptorIndex, descriptor[0]);
                 return i;
@@ -129,7 +133,7 @@ public class FileSystem {
     }
 
     private int allocDescriptor() {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 6; i++) {
             ioSystem.readBlock(i + 1, buffer);
             for (int j = 0; j < buffer.length() / DESCRIPTOR_SIZE; j++) {
                 if (buffer.get(j * DESCRIPTOR_SIZE + 1) == 0)
@@ -193,6 +197,7 @@ public class FileSystem {
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         descriptor = getDescriptor(descriptorIndex);
         int bitmapIndex;
+        int i = 0;
 
         while (status != 4 && count > 0) {
             if (status < 0) {
@@ -216,8 +221,9 @@ public class FileSystem {
                 setDescriptor(descriptorIndex);
                 openFileTables[index].initBuffer();
             }
-            status = openFileTables[index].writeByte(memArea);
+            status = openFileTables[index].writeByte(memArea.get(i));
             count--;
+            i++;
         }
         return count;
     }

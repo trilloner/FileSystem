@@ -26,6 +26,28 @@ public class UnsignedByteArray {
         return this.array.length;
     }
 
+    public UnsignedByteArray fillToLength(int length, int fillValue) {
+        if (length <= this.length()) {
+            throw new IllegalArgumentException("Array length >= provided length");
+        }
+
+        UnsignedByteArray array = new UnsignedByteArray(length);
+
+        for (int i = 0; i < this.length(); i++) {
+            array.set(i, this.get(i));
+        }
+
+        for (int i = this.length(); i < array.length(); i++) {
+            array.set(i, fillValue);
+        }
+
+        return array;
+    }
+
+    public UnsignedByteArray fillToLength(int length) {
+        return this.fillToLength(length, 0);
+    }
+
     @Override
     public boolean equals(Object obj) {
 
