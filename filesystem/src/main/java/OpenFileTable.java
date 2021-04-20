@@ -7,13 +7,14 @@ public class OpenFileTable {
 
     public OpenFileTable(int bufferSize) {
         this.buffer = new UnsignedByteArray(bufferSize);
-        this.currentPosition = 0;
+        this.currentPosition = -1;
         this.descriptorIndex = -1;
         this.length = -1;
     }
 
     public void init() {
         init(-1, -1);
+        this.currentPosition = -1;
     }
 
     public void init(int descriptorIndex, int length) {

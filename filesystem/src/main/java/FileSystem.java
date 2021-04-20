@@ -23,7 +23,7 @@ public class FileSystem {
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
             openFileTables[i] = new OpenFileTable(bufferSize);
         }
-        openFileTables[0].init(0, -1);
+        openFileTables[0].init(0, 0);
     }
 
     private static int[] createMask() {
@@ -48,7 +48,7 @@ public class FileSystem {
 
         fName = fName.fillToLength(FILENAME_SIZE);
 
-        if (searchDirectory(fName) != openFileTables[0].getLength()) {
+        if (searchDirectory(fName) != -1) {
             System.out.println("Error: File already exists");
             return false;
         }
