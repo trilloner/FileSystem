@@ -1,5 +1,3 @@
-import java.nio.ByteBuffer;
-
 public class FileSystem {
 
     private IOSystem ioSystem;
@@ -8,11 +6,16 @@ public class FileSystem {
     private int[] descriptor;
     private static final int MAX_OPEN_FILES = 4;
     private static final int DESCRIPTOR_SIZE = 4;
+    private static final int FILENAME_SIZE = 4;
+    private static final int INT_SIZE = 4;
+
+    private static final int[] MASK = createMask();
+    private static final int[] MASK2 = createMask2();
 
 
-    public FileSystem(int bufferSize) {
+    public FileSystem(int length, int bufferSize) {
 
-        ioSystem = new IOSystem();
+        ioSystem = new IOSystem(length, bufferSize);
         openFileTables = new OpenFileTable[MAX_OPEN_FILES];
         buffer = new UnsignedByteArray(bufferSize);
         descriptor = new int[DESCRIPTOR_SIZE];
@@ -23,10 +26,27 @@ public class FileSystem {
         openFileTables[0].init(0, -1);
     }
 
+    private static int[] createMask() {
+        int[] mask = new int[32];
+        mask[31] = 1;
+        for (int i = 30; i >= 0; i--) {
+            mask[i] = mask[i + 1] << 1;
+        }
+        return mask;
+    }
+
+    private static int[] createMask2() {
+        int[] mask2 = new int[32];
+        for (int i = 0; i < 32; i++) {
+            mask2[i] = ~FileSystem.MASK[i];
+        }
+        return mask2;
+    }
+
     public boolean create(UnsignedByteArray fName) {
         int descriptorIndex;
 
-        fName = fName.fillToLength(4);
+        fName = fName.fillToLength(FILENAME_SIZE);
 
         if (searchDirectory(fName) != openFileTables[0].getLength()) {
             System.out.println("Error: File already exists");
@@ -43,7 +63,7 @@ public class FileSystem {
         allocDirectory();
 
         write(0, fName, fName.length());
-        write(0, UnsignedByteArray.fromInt(descriptorIndex), 4);
+        write(0, UnsignedByteArray.fromInt(descriptorIndex), INT_SIZE);
 
         setDescriptor(descriptorIndex);
 
@@ -51,7 +71,7 @@ public class FileSystem {
     }
 
     public int open(UnsignedByteArray fName) {
-        fName = fName.fillToLength(4);
+        fName = fName.fillToLength(INT_SIZE);
         lseek(0, 0);
         int descriptorIndex;
 
@@ -62,8 +82,8 @@ public class FileSystem {
             return -1;
         }
 
-        read(0, buffer, 8);
-        descriptorIndex = buffer.subArray(4, 8).toInt();
+        read(0, buffer, FILENAME_SIZE + INT_SIZE);
+        descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
         descriptor = getDescriptor(descriptorIndex);
 
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
@@ -122,10 +142,10 @@ public class FileSystem {
         UnsignedByteArray temp = new UnsignedByteArray(8);
 
         while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
-            read(0, temp, 8);
+            read(0, temp, FILENAME_SIZE + INT_SIZE);
 
-            if (dName.equals(temp.subArray(4))) {
-                lseek(0, openFileTables[0].getCurrentPosition() - 8);
+            if (dName.equals(temp.subArray(FILENAME_SIZE))) {
+                lseek(0, openFileTables[0].getCurrentPosition() - FILENAME_SIZE - INT_SIZE);
                 return openFileTables[0].getCurrentPosition();
             }
         }
@@ -145,7 +165,7 @@ public class FileSystem {
 
     private int allocDirectory() {
         lseek(0, 0);
-        UnsignedByteArray temp = new UnsignedByteArray(4);
+        UnsignedByteArray temp = new UnsignedByteArray(FILENAME_SIZE);
         searchDirectory(temp);
 
         if (openFileTables[0].getCurrentPosition() == buffer.length() * 3) {
@@ -214,8 +234,18 @@ public class FileSystem {
                     return count;
                 }
                 ioSystem.readBlock(0, buffer);
-                //buffer[bitmapIndex / 32] = buffer[bitmapIndex / 32] ; // TODO upgrade
+
+                int bufferIntIndex = (bitmapIndex / 32) * INT_SIZE;
+                UnsignedByteArray bitmapPart = UnsignedByteArray.fromInt(
+                        buffer.subArray(bufferIntIndex, bufferIntIndex + INT_SIZE).toInt() | MASK[bitmapIndex % 32]
+                );
+
+                for (int j = bufferIntIndex, k = 0; k < INT_SIZE; j++, k++) {
+                    buffer.set(j, bitmapPart.get(k));
+                }
+
                 ioSystem.writeBlock(0, buffer);
+
                 descriptor[status] = bitmapIndex;
                 descriptor[0] = openFileTables[index].getCurrentPosition();
                 setDescriptor(descriptorIndex);
@@ -266,6 +296,7 @@ public class FileSystem {
 
 
     private int[] getDescriptor(int descriptorIndex) {
+        // TODO upgrade
         ioSystem.readBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
         for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
             descriptor[i] = buffer.get(i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE);
@@ -274,19 +305,20 @@ public class FileSystem {
     }
 
     private void setDescriptor(int descriptorIndex) {
+        // TODO upgrade
         ioSystem.readBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
         for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
             buffer.set(i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE, descriptor[i]);
         }
-        ioSystem.writeBlock(1 + (descriptorIndex / 4), buffer);
+        ioSystem.writeBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
     }
 
     private int freeBitMap() {
         int tmp;
         ioSystem.readBlock(0, buffer);
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 2 * INT_SIZE; i += INT_SIZE) {
             for (int j = 0; j < 32; j++) {
-                tmp = buffer.get(i);// TODO upgrade
+                tmp = buffer.subArray(i, i + INT_SIZE).toInt() & MASK[j];
                 if (tmp == 0) {
                     return i * 32 + j;
                 }
