@@ -6,11 +6,11 @@ public class FileSystem {
     private IOSystem ioSystem;
     private OpenFileTable[] openFileTables;
     private UnsignedByteArray buffer;
-    private int[] descriptor;
     private static final int MAX_OPEN_FILES = 4;
     private static final int DESCRIPTOR_SIZE = 4;
     private static final int FILENAME_SIZE = 4;
     private static final int INT_SIZE = 4;
+    private static final int NOT_ALLOCATED_INDEX = 255;
 
     private static final int[] MASK = createMask();
     private static final int[] MASK2 = createMask2();
@@ -21,7 +21,6 @@ public class FileSystem {
         ioSystem = new IOSystem(length, bufferSize);
         openFileTables = new OpenFileTable[MAX_OPEN_FILES];
         buffer = new UnsignedByteArray(bufferSize);
-        descriptor = new int[DESCRIPTOR_SIZE];
 
         for (int i = 0; i < MAX_OPEN_FILES; i++) {
             openFileTables[i] = new OpenFileTable(bufferSize);
@@ -56,19 +55,28 @@ public class FileSystem {
             return false;
         }
 
-        descriptorIndex = allocDescriptor();
+        descriptorIndex = getFreeDescriptorIndex();
 
         if (descriptorIndex == -1) {
             System.out.println("Error: Descriptor is already taken");
             return false;
         }
 
+        int freeBlockIndex = readBitmapAndGetFreeBlockIndex();
+        if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
+            System.out.println("Error: No free block");
+            return false;
+        }
+        IntArray bufferAsIntArray = buffer.asIntArray();
+        bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
+
         allocDirectory();
 
         write(0, fName, fName.length());
         write(0, UnsignedByteArray.fromInt(descriptorIndex), INT_SIZE);
 
-        setDescriptor(descriptorIndex);
+        setDescriptor(descriptorIndex, new Descriptor(
+                0, new int[] {freeBlockIndex, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
 
         return true;
     }
@@ -87,7 +95,7 @@ public class FileSystem {
 
         read(0, buffer, FILENAME_SIZE + INT_SIZE);
         descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
-        descriptor = getDescriptor(descriptorIndex);
+        Descriptor descriptor = getDescriptor(descriptorIndex);
 
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == descriptorIndex) {
@@ -98,7 +106,7 @@ public class FileSystem {
 
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == -1) {
-                openFileTables[i].init(descriptorIndex, descriptor[0]);
+                openFileTables[i].init(descriptorIndex, descriptor.getFileLength());
                 return i;
             }
         }
@@ -113,25 +121,26 @@ public class FileSystem {
             return -1;
         }
 
-        int descriptorIndex, currentBlock, status;
+        int descriptorIndex = openFileTables[index].getDescriptorIndex();
+        int currentBlock = openFileTables[index].getCurrentBlock();
+        int status = openFileTables[index].getStatus();
 
-        if (openFileTables[index].getDescriptorIndex() != -1) {
-            descriptorIndex = openFileTables[index].getDescriptorIndex();
-            descriptor[0] = openFileTables[index].getLength();
+        if (descriptorIndex != -1) {
+            Descriptor descriptor = getDescriptor(descriptorIndex);
+            descriptor.setFileLength(openFileTables[index].getLength());
+            setDescriptor(descriptorIndex, descriptor);
 
-            setDescriptor(descriptorIndex);
-
-            currentBlock = openFileTables[index].getCurrentBlock();
-            status = openFileTables[index].getStatus();
             if (status == 1) {
                 openFileTables[index].init();
                 return index;
-            } else if (status > 1 || status < -1) {
-                currentBlock--;
-                ioSystem.writeBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
-            } else {
-                ioSystem.writeBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
             }
+
+            if (status > 1 || status < -1) {
+                currentBlock--;
+            }
+
+            ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
+
             openFileTables[index].init();
             return index;
         } else {
@@ -155,7 +164,7 @@ public class FileSystem {
         return -1;
     }
 
-    private int allocDescriptor() {
+    private int getFreeDescriptorIndex() {
         for (int i = 0; i < 6; i++) {
             ioSystem.readBlock(i + 1, buffer);
             for (int j = 0; j < buffer.length() / DESCRIPTOR_SIZE; j++) {
@@ -171,7 +180,7 @@ public class FileSystem {
         UnsignedByteArray temp = new UnsignedByteArray(FILENAME_SIZE);
         searchDirectory(temp);
 
-        if (openFileTables[0].getCurrentPosition() == buffer.length() * 3) {
+        if (openFileTables[0].getCurrentPosition() == buffer.length()) {
             return -1;
         }
         return openFileTables[0].getCurrentPosition();
@@ -189,11 +198,12 @@ public class FileSystem {
         }
         int status = openFileTables[index].getStatus();
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
-        descriptor = getDescriptor(descriptorIndex);
+        Descriptor descriptor = getDescriptor(descriptorIndex);
+
         while ((status <= 0) && count > 0
                 && (openFileTables[index].getCurrentPosition() < openFileTables[index].getLength())) {
             if (status < 0) {
-                ioSystem.readBlock(descriptor[(-1) * status], openFileTables[index].getBuffer());
+                ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
             }
             status = openFileTables[index].readByte(memArea, i);
             i++;
@@ -218,34 +228,31 @@ public class FileSystem {
 
         int status = openFileTables[index].getStatus();
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
-        descriptor = getDescriptor(descriptorIndex);
-        int bitmapIndex;
+        Descriptor descriptor = getDescriptor(descriptorIndex);
+        int freeBlockIndex;
         int i = 0;
 
         while (status != 4 && count > 0) {
             if (status < 0) {
-                if (status < 1) {
-                    ioSystem.writeBlock(descriptor[(-1) * status - 1], openFileTables[index].getBuffer());
-                }
-                ioSystem.readBlock(descriptor[(-1) * status], openFileTables[index].getBuffer());
+                ioSystem.writeBlock(descriptor.getBlockIndex(-1 * status - 2), openFileTables[index].getBuffer());
+                ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
             } else if (status > 0) {
                 if (status > 1 && status != 5) {
-                    ioSystem.writeBlock(descriptor[status - 1], openFileTables[index].getBuffer());
+                    ioSystem.writeBlock(descriptor.getBlockIndex(status - 2), openFileTables[index].getBuffer());
                 }
-                bitmapIndex = freeBitMap();
-                if (bitmapIndex == -1) {
+                freeBlockIndex = readBitmapAndGetFreeBlockIndex();
+                if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
                     return count;
                 }
-                ioSystem.readBlock(0, buffer);
 
                 IntArray bufferAsIntArray = buffer.asIntArray();
-                bufferAsIntArray.set(bitmapIndex / 32, bufferAsIntArray.get(bitmapIndex / 32) | MASK[bitmapIndex % 32]);
+                bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
 
                 ioSystem.writeBlock(0, buffer);
 
-                descriptor[status] = bitmapIndex;
-                descriptor[0] = openFileTables[index].getCurrentPosition();
-                setDescriptor(descriptorIndex);
+                descriptor.setBlockIndex(status - 1, freeBlockIndex);
+                descriptor.setFileLength(openFileTables[index].getCurrentPosition());
+                setDescriptor(descriptorIndex, descriptor);
                 openFileTables[index].initBuffer();
             }
             status = openFileTables[index].writeByte(memArea.get(i));
@@ -270,47 +277,49 @@ public class FileSystem {
         }
 
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
-        getDescriptor(descriptorIndex);
+        Descriptor descriptor = getDescriptor(descriptorIndex);
 
         int currentBlock = openFileTables[index].getDescriptorIndex();
         int status = openFileTables[index].getStatus();
 
         if (status == 0) {
-            ioSystem.writeBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
+            ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
         } else {
             if (status != 1 && status != -1) {
-                ioSystem.writeBlock(descriptor[currentBlock - 1], openFileTables[index].getBuffer());
+                ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock - 1), openFileTables[index].getBuffer());
             }
         }
         openFileTables[index].seek(pos);
         status = openFileTables[index].getStatus();
         currentBlock = openFileTables[index].getCurrentBlock();
         if (status <= 0) {
-            ioSystem.readBlock(descriptor[currentBlock], openFileTables[index].getBuffer());
+            ioSystem.readBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
         }
         return pos;
     }
 
 
-    private int[] getDescriptor(int descriptorIndex) {
-        // TODO upgrade
-        ioSystem.readBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
-        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
-            descriptor[i] = buffer.get(i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE);
-        }
-        return descriptor;
+    private Descriptor getDescriptor(int descriptorIndex) {
+        ioSystem.readBlock(1 + descriptorIndex * DESCRIPTOR_SIZE / buffer.length(), buffer);
+
+        int descriptorIndexInBuffer = descriptorIndex * DESCRIPTOR_SIZE % buffer.length();
+        return new Descriptor(buffer.subArray(descriptorIndexInBuffer, descriptorIndexInBuffer + DESCRIPTOR_SIZE));
     }
 
-    private void setDescriptor(int descriptorIndex) {
-        // TODO upgrade
-        ioSystem.readBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
-        for (int i = 0; i < DESCRIPTOR_SIZE; i++) {
-            buffer.set(i + (descriptorIndex % DESCRIPTOR_SIZE) * DESCRIPTOR_SIZE, descriptor[i]);
+    private void setDescriptor(int descriptorIndex, Descriptor descriptor) {
+        int blockIndex = 1 + descriptorIndex * DESCRIPTOR_SIZE / buffer.length();
+        ioSystem.readBlock(blockIndex, buffer);
+
+        int descriptorIndexInBuffer = descriptorIndex * DESCRIPTOR_SIZE % buffer.length();
+        buffer.set(descriptorIndexInBuffer, descriptor.getFileLength());
+        for (int i = descriptorIndexInBuffer + 1; i < DESCRIPTOR_SIZE; i++) {
+            buffer.set(i, descriptor.getBlockIndex(i - 1));
         }
-        ioSystem.writeBlock(1 + (descriptorIndex / DESCRIPTOR_SIZE), buffer);
+
+        ioSystem.writeBlock(blockIndex, buffer);
     }
 
-    private int freeBitMap() {
+    private int readBitmapAndGetFreeBlockIndex() {
         ioSystem.readBlock(0, buffer);
         IntArray bufferAsIntArray = buffer.asIntArray();
         for (int i = 0; i < 2; i++) {
@@ -320,6 +329,6 @@ public class FileSystem {
                 }
             }
         }
-        return -1;
+        return NOT_ALLOCATED_INDEX;
     }
 }

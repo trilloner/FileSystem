@@ -83,7 +83,7 @@ public class OpenFileTable {
     }
 
     public int getCurrentBlock() {
-        return (currentPosition / buffer.length()) + 1;
+        return currentPosition / buffer.length();
     }
 
     public int getStatus() {
