@@ -7,7 +7,7 @@ public class Descriptor {
         array = new UnsignedByteArray(blockIndices.length + 1);
         array.set(0, fileLength);
         for (int i = 0; i < blockIndices.length; i++) {
-            array.set(i + 1, blockIndices[0]);
+            array.set(i + 1, blockIndices[i]);
         }
     }
     public Descriptor(UnsignedByteArray array) {

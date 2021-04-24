@@ -11,7 +11,7 @@ public class FileSystem {
     private static final int FILENAME_SIZE = 4;
     private static final int INT_SIZE = 4;
     private static final int NOT_ALLOCATED_INDEX = 255;
-
+    private static final int INT_BITSIZE = 32;
     private static final int[] MASK = createMask();
     private static final int[] MASK2 = createMask2();
 
@@ -29,17 +29,17 @@ public class FileSystem {
     }
 
     private static int[] createMask() {
-        int[] mask = new int[32];
-        mask[31] = 1;
-        for (int i = 30; i >= 0; i--) {
+        int[] mask = new int[INT_BITSIZE];
+        mask[INT_BITSIZE - 1] = 1;
+        for (int i = INT_BITSIZE - 2; i >= 0; i--) {
             mask[i] = mask[i + 1] << 1;
         }
         return mask;
     }
 
     private static int[] createMask2() {
-        int[] mask2 = new int[32];
-        for (int i = 0; i < 32; i++) {
+        int[] mask2 = new int[INT_BITSIZE];
+        for (int i = 0; i < INT_BITSIZE; i++) {
             mask2[i] = ~FileSystem.MASK[i];
         }
         return mask2;
@@ -69,6 +69,7 @@ public class FileSystem {
         }
         IntArray bufferAsIntArray = buffer.asIntArray();
         bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
+        ioSystem.writeBlock(0, buffer);
 
         allocDirectory();
 
@@ -76,7 +77,7 @@ public class FileSystem {
         write(0, UnsignedByteArray.fromInt(descriptorIndex), INT_SIZE);
 
         setDescriptor(descriptorIndex, new Descriptor(
-                0, new int[] {freeBlockIndex, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
+                0, new int[]{freeBlockIndex, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
 
         return true;
     }
@@ -322,13 +323,16 @@ public class FileSystem {
     private int readBitmapAndGetFreeBlockIndex() {
         ioSystem.readBlock(0, buffer);
         IntArray bufferAsIntArray = buffer.asIntArray();
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 32; j++) {
-                if ((bufferAsIntArray.get(i) & MASK[j]) == 0) {
-                    return i * 32 + j;
-                }
+
+        for (int k = 7; k < ioSystem.getLength(); k++) {
+            int i = k / INT_BITSIZE;
+            int j = k % INT_BITSIZE;
+
+            if ((bufferAsIntArray.get(i) & MASK[j]) == 0) {
+                return k;
             }
         }
+
         return NOT_ALLOCATED_INDEX;
     }
 }
