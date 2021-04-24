@@ -1,3 +1,5 @@
+package array;
+
 import java.nio.ByteBuffer;
 
 public class UnsignedByteArray {
@@ -24,6 +26,10 @@ public class UnsignedByteArray {
 
     public int length() {
         return this.array.length;
+    }
+
+    public IntArray asIntArray() {
+        return new IntArray(this);
     }
 
     public UnsignedByteArray fillToLength(int length, int fillValue) {
@@ -88,12 +94,12 @@ public class UnsignedByteArray {
         return subArray(0, toIndex);
     }
 
-    public static UnsignedByteArray fromInt(int temp) {
+    public static UnsignedByteArray fromInt(int value) {
         UnsignedByteArray array = new UnsignedByteArray(4);
 
         for (int i = 3; i >= 0; i--) {
-            array.set(i, temp);
-            temp >>= 8;
+            array.set(i, value);
+            value >>= 8;
         }
 
         return array;

@@ -1,3 +1,6 @@
+import array.IntArray;
+import array.UnsignedByteArray;
+
 public class FileSystem {
 
     private IOSystem ioSystem;
@@ -235,14 +238,8 @@ public class FileSystem {
                 }
                 ioSystem.readBlock(0, buffer);
 
-                int bufferIntIndex = (bitmapIndex / 32) * INT_SIZE;
-                UnsignedByteArray bitmapPart = UnsignedByteArray.fromInt(
-                        buffer.subArray(bufferIntIndex, bufferIntIndex + INT_SIZE).toInt() | MASK[bitmapIndex % 32]
-                );
-
-                for (int j = bufferIntIndex, k = 0; k < INT_SIZE; j++, k++) {
-                    buffer.set(j, bitmapPart.get(k));
-                }
+                IntArray bufferAsIntArray = buffer.asIntArray();
+                bufferAsIntArray.set(bitmapIndex / 32, bufferAsIntArray.get(bitmapIndex / 32) | MASK[bitmapIndex % 32]);
 
                 ioSystem.writeBlock(0, buffer);
 
@@ -314,12 +311,11 @@ public class FileSystem {
     }
 
     private int freeBitMap() {
-        int tmp;
         ioSystem.readBlock(0, buffer);
-        for (int i = 0; i < 2 * INT_SIZE; i += INT_SIZE) {
+        IntArray bufferAsIntArray = buffer.asIntArray();
+        for (int i = 0; i < 2; i++) {
             for (int j = 0; j < 32; j++) {
-                tmp = buffer.subArray(i, i + INT_SIZE).toInt() & MASK[j];
-                if (tmp == 0) {
+                if ((bufferAsIntArray.get(i) & MASK[j]) == 0) {
                     return i * 32 + j;
                 }
             }

@@ -1,3 +1,5 @@
+import array.UnsignedByteArray;
+
 public class OpenFileTable {
     private int currentPosition;
     private UnsignedByteArray buffer;
