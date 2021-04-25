@@ -74,8 +74,7 @@ public class Shell {
         var filename = new UnsignedByteArray(args.get(0));
         if (fileSystem.create(filename)) {
             System.out.printf("file %s created\n", filename.toAsciiString());
-        }
-        else {
+        } else {
             System.out.println("error");
         }
     }
@@ -90,8 +89,7 @@ public class Shell {
         int index = fileSystem.open(filename);
         if (index != -1) {
             System.out.printf("file %s opened, index=%d\n", filename.toAsciiString(), index);
-        }
-        else {
+        } else {
             System.out.println("error");
         }
 
@@ -108,12 +106,10 @@ public class Shell {
             index = fileSystem.close(index);
             if (index != -1) {
                 System.out.printf("file %d closed\n", index);
-            }
-            else {
+            } else {
                 System.out.println("error");
             }
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
             System.out.println("error");
         }
     }
@@ -131,12 +127,11 @@ public class Shell {
             count = fileSystem.write(index, chars, count);
             if (count != -1) {
                 System.out.printf("%d bytes written\n", count);
-            }
-            else {
+
+            } else {
                 System.out.println("error");
             }
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
             System.out.println("Error");
         }
     }
@@ -154,12 +149,10 @@ public class Shell {
             count = fileSystem.read(index, chars, count);
             if (count != -1) {
                 System.out.printf("%d bytes read: %s\n", count, chars.toAsciiString());
-            }
-            else {
+            } else {
                 System.out.println("error");
             }
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
             System.out.println("Error");
         }
     }
@@ -176,12 +169,10 @@ public class Shell {
             pos = fileSystem.lseek(index, pos);
             if (pos != -1) {
                 System.out.printf("current position is %d\n", pos);
-            }
-            else {
+            } else {
                 System.out.println("error");
             }
-        }
-        catch (NumberFormatException e) {
+        } catch (NumberFormatException e) {
             System.out.println("Error");
         }
     }

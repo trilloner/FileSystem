@@ -26,6 +26,16 @@ public class FileSystem {
             openFileTables[i] = new OpenFileTable(bufferSize);
         }
         openFileTables[0].init(0, 0);
+
+        int freeBlockIndex = readBitmapAndGetFreeBlockIndex();
+        System.out.printf("%d: freeBlock index \n", freeBlockIndex);
+        IntArray bufferAsIntArray = buffer.asIntArray();
+        bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
+        ioSystem.writeBlock(0, buffer);
+
+        setDescriptor(0, new Descriptor(0,
+                new int[]{freeBlockIndex, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
+
     }
 
     private static int[] createMask() {
@@ -46,7 +56,6 @@ public class FileSystem {
     }
 
     public boolean create(UnsignedByteArray fName) {
-        int descriptorIndex;
 
         fName = fName.fillToLength(FILENAME_SIZE);
 
@@ -55,7 +64,8 @@ public class FileSystem {
             return false;
         }
 
-        descriptorIndex = getFreeDescriptorIndex();
+        int descriptorIndex = getFreeDescriptorIndex();
+        System.out.printf("%d: descr index \n", descriptorIndex);
 
         if (descriptorIndex == -1) {
             System.out.println("Error: Descriptor is already taken");
@@ -63,6 +73,7 @@ public class FileSystem {
         }
 
         int freeBlockIndex = readBitmapAndGetFreeBlockIndex();
+        System.out.printf("%d: freeBlock index inside create \n", freeBlockIndex);
         if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
             System.out.println("Error: No free block");
             return false;
@@ -227,13 +238,15 @@ public class FileSystem {
             return -1;
         }
 
+        int tempCount = count;
+
         int status = openFileTables[index].getStatus();
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         Descriptor descriptor = getDescriptor(descriptorIndex);
         int freeBlockIndex;
         int i = 0;
 
-        while (status != 4 && count > 0) {
+        while (status != 4 && tempCount > 0) {
             if (status < 0) {
                 ioSystem.writeBlock(descriptor.getBlockIndex(-1 * status - 2), openFileTables[index].getBuffer());
                 ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
@@ -243,7 +256,7 @@ public class FileSystem {
                 }
                 freeBlockIndex = readBitmapAndGetFreeBlockIndex();
                 if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
-                    return count;
+                    return tempCount;
                 }
 
                 IntArray bufferAsIntArray = buffer.asIntArray();
@@ -257,7 +270,7 @@ public class FileSystem {
                 openFileTables[index].initBuffer();
             }
             status = openFileTables[index].writeByte(memArea.get(i));
-            count--;
+            tempCount--;
             i++;
         }
         return count;
@@ -313,8 +326,8 @@ public class FileSystem {
 
         int descriptorIndexInBuffer = descriptorIndex * DESCRIPTOR_SIZE % buffer.length();
         buffer.set(descriptorIndexInBuffer, descriptor.getFileLength());
-        for (int i = descriptorIndexInBuffer + 1; i < DESCRIPTOR_SIZE; i++) {
-            buffer.set(i, descriptor.getBlockIndex(i - 1));
+        for (int i = descriptorIndexInBuffer + 1, j = 0; j < DESCRIPTOR_SIZE - 1; i++, j++) {
+            buffer.set(i, descriptor.getBlockIndex(j));
         }
 
         ioSystem.writeBlock(blockIndex, buffer);
