@@ -27,14 +27,8 @@ public class FileSystem {
         }
         openFileTables[0].init(0, 0);
 
-        int freeBlockIndex = readBitmapAndGetFreeBlockIndex();
-        System.out.printf("%d: freeBlock index \n", freeBlockIndex);
-        IntArray bufferAsIntArray = buffer.asIntArray();
-        bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
-        ioSystem.writeBlock(0, buffer);
-
         setDescriptor(0, new Descriptor(0,
-                new int[]{freeBlockIndex, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
+                new int[]{NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
 
     }
 
@@ -72,23 +66,13 @@ public class FileSystem {
             return false;
         }
 
-        int freeBlockIndex = readBitmapAndGetFreeBlockIndex();
-        System.out.printf("%d: freeBlock index inside create \n", freeBlockIndex);
-        if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
-            System.out.println("Error: No free block");
-            return false;
-        }
-        IntArray bufferAsIntArray = buffer.asIntArray();
-        bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
-        ioSystem.writeBlock(0, buffer);
-
         allocDirectory();
 
         write(0, fName, fName.length());
         write(0, UnsignedByteArray.fromInt(descriptorIndex), INT_SIZE);
 
         setDescriptor(descriptorIndex, new Descriptor(
-                0, new int[]{freeBlockIndex, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
+                0, new int[]{NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
 
         return true;
     }
@@ -293,7 +277,7 @@ public class FileSystem {
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         Descriptor descriptor = getDescriptor(descriptorIndex);
 
-        int currentBlock = openFileTables[index].getDescriptorIndex();
+        int currentBlock = openFileTables[index].getCurrentBlock();
         int status = openFileTables[index].getStatus();
 
         if (status == 0) {
