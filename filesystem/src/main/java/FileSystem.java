@@ -192,18 +192,19 @@ public class FileSystem {
             System.out.println("Read: Count cannot be negative.");
             return -1;
         }
+        int tempCount = count;
         int status = openFileTables[index].getStatus();
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         Descriptor descriptor = getDescriptor(descriptorIndex);
 
-        while ((status <= 0) && count > 0
+        while ((status <= 0) && tempCount > 0
                 && (openFileTables[index].getCurrentPosition() < openFileTables[index].getLength())) {
             if (status < 0) {
                 ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
             }
             status = openFileTables[index].readByte(memArea, i);
             i++;
-            count--;
+            tempCount--;
         }
         return count;
     }
@@ -235,7 +236,7 @@ public class FileSystem {
                 ioSystem.writeBlock(descriptor.getBlockIndex(-1 * status - 2), openFileTables[index].getBuffer());
                 ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
             } else if (status > 0) {
-                if (status > 1 && status != 5) {
+                if (status > 1 && status != 3) {
                     ioSystem.writeBlock(descriptor.getBlockIndex(status - 2), openFileTables[index].getBuffer());
                 }
                 freeBlockIndex = readBitmapAndGetFreeBlockIndex();
@@ -253,7 +254,11 @@ public class FileSystem {
                 setDescriptor(descriptorIndex, descriptor);
                 openFileTables[index].initBuffer();
             }
-            status = openFileTables[index].writeByte(memArea.get(i));
+            if (memArea.length() <= i) {
+                status = openFileTables[index].writeByte(memArea.get(memArea.length() - 1));
+            } else {
+                status = openFileTables[index].writeByte(memArea.get(i));
+            }
             tempCount--;
             i++;
         }
