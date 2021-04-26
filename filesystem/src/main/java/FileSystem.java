@@ -233,10 +233,12 @@ public class FileSystem {
 
         while (status != 4 && tempCount > 0) {
             if (status < 0) {
-                ioSystem.writeBlock(descriptor.getBlockIndex(-1 * status - 2), openFileTables[index].getBuffer());
+                if (status < -1) {
+                    ioSystem.writeBlock(descriptor.getBlockIndex(-1 * status - 2), openFileTables[index].getBuffer());
+                }
                 ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
             } else if (status > 0) {
-                if (status > 1 && status != 3) {
+                if (status > 1) {
                     ioSystem.writeBlock(descriptor.getBlockIndex(status - 2), openFileTables[index].getBuffer());
                 }
                 freeBlockIndex = readBitmapAndGetFreeBlockIndex();
