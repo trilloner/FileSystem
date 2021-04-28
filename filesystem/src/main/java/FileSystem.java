@@ -57,14 +57,14 @@ public class FileSystem {
         fName = fName.fillToLength(FILENAME_SIZE);
 
         if (searchDirectory(fName) != -1) {
-            System.out.println("Error: File already exists");
+            System.out.println("err: File already exists");
             return false;
         }
 
         int descriptorIndex = getFreeDescriptorIndex();
 
         if (descriptorIndex == -1) {
-            System.out.println("Error: Descriptor is already taken");
+            System.out.println("err: Descriptor is already taken");
             return false;
         }
 
@@ -84,7 +84,7 @@ public class FileSystem {
         lseek(0, 0);
 
         if (searchDirectory(fName) == -1) {
-            System.out.println("Error: File not created");
+            System.out.println("err: File not created");
             return false;
         }
         read(0, buffer, FILENAME_SIZE + INT_SIZE);
@@ -126,7 +126,7 @@ public class FileSystem {
         int directoryIndex = searchDirectory(fName);
 
         if (directoryIndex == openFileTables[0].getLength()) {
-            System.out.println("Error: File not already exists");
+            System.out.println("err: File not already exists");
             return -1;
         }
 
@@ -136,7 +136,7 @@ public class FileSystem {
 
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == descriptorIndex) {
-                System.out.println("Error: File already opened");
+                System.out.println("err: File already opened");
                 return -1;
             }
         }
@@ -148,7 +148,7 @@ public class FileSystem {
             }
         }
 
-        System.out.println("Error: OpenFileTable is full");
+        System.out.println("err: OpenFileTable is full");
         return -1;
     }
 
@@ -181,7 +181,7 @@ public class FileSystem {
             openFileTables[index].init();
             return index;
         } else {
-            System.out.println("Error: File is not opened");
+            System.out.println("err: File is not opened");
             return -1;
         }
     }
@@ -351,9 +351,21 @@ public class FileSystem {
         var memArea = new UnsignedByteArray(FILENAME_SIZE + DESCRIPTOR_SIZE);
         while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
             read(0, memArea, FILENAME_SIZE + DESCRIPTOR_SIZE);
-            String name = memArea.subArray(FILENAME_SIZE).toAsciiString();
-            Descriptor descriptor = new Descriptor(memArea.subArray(FILENAME_SIZE, FILENAME_SIZE + DESCRIPTOR_SIZE));
-            fileInfos.add(new Pair<>(name, descriptor.getFileLength()));
+
+            boolean isInfoEmpty = true;
+
+            for (int i = 0; i < FILENAME_SIZE + INT_SIZE; i++) {
+                if (memArea.get(i) != 0) {
+                    isInfoEmpty = false;
+                    break;
+                }
+            }
+
+            if (!isInfoEmpty) {
+                String name = memArea.subArray(FILENAME_SIZE).toAsciiString();
+                Descriptor descriptor = new Descriptor(memArea.subArray(FILENAME_SIZE, FILENAME_SIZE + DESCRIPTOR_SIZE));
+                fileInfos.add(new Pair<>(name, descriptor.getFileLength()));
+            }
         }
 
         return fileInfos;

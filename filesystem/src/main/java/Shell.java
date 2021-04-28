@@ -37,6 +37,7 @@ public class Shell {
                 create(args);
                 break;
             case "de":
+                destroy(args);
                 break;
             case "op":
                 open(args);
@@ -133,7 +134,7 @@ public class Shell {
                 System.out.println("error");
             }
         } catch (NumberFormatException e) {
-            System.out.println("Error");
+            System.out.println("error");
         }
     }
 
@@ -154,7 +155,7 @@ public class Shell {
                 System.out.println("error");
             }
         } catch (NumberFormatException e) {
-            System.out.println("Error");
+            System.out.println("error");
         }
     }
 
@@ -174,7 +175,7 @@ public class Shell {
                 System.out.println("error");
             }
         } catch (NumberFormatException e) {
-            System.out.println("Error");
+            System.out.println("error");
         }
     }
 
@@ -193,6 +194,18 @@ public class Shell {
         else {
             System.out.println("directory is empty");
         }
+    }
 
+    public void destroy(List<String> args) {
+        if (args.size() != 1) {
+            System.out.println("error");
+        }
+
+        var filename = new UnsignedByteArray(args.get(0));
+        if (fileSystem.destroy(filename)) {
+            System.out.printf("file %s destroyed\n", filename.toAsciiString());
+        } else {
+            System.out.println("error");
+        }
     }
 }
