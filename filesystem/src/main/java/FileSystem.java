@@ -1,6 +1,9 @@
 import array.IntArray;
 import array.UnsignedByteArray;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class FileSystem {
 
     private IOSystem ioSystem;
@@ -59,7 +62,6 @@ public class FileSystem {
         }
 
         int descriptorIndex = getFreeDescriptorIndex();
-        System.out.printf("%d: descr index \n", descriptorIndex);
 
         if (descriptorIndex == -1) {
             System.out.println("Error: Descriptor is already taken");
@@ -78,7 +80,7 @@ public class FileSystem {
     }
 
     public int open(UnsignedByteArray fName) {
-        fName = fName.fillToLength(INT_SIZE);
+        fName = fName.fillToLength(FILENAME_SIZE);
         lseek(0, 0);
         int descriptorIndex;
 
@@ -303,6 +305,20 @@ public class FileSystem {
         return pos;
     }
 
+    public List<Pair<String, Integer>> directory() {
+        var fileInfos = new ArrayList<Pair<String, Integer>>();
+
+        lseek(0, 0);
+        var memArea = new UnsignedByteArray(FILENAME_SIZE + DESCRIPTOR_SIZE);
+        while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
+            read(0, memArea, FILENAME_SIZE + DESCRIPTOR_SIZE);
+            String name = memArea.subArray(FILENAME_SIZE).toAsciiString();
+            Descriptor descriptor = new Descriptor(memArea.subArray(FILENAME_SIZE, FILENAME_SIZE + DESCRIPTOR_SIZE));
+            fileInfos.add(new Pair<>(name, descriptor.getFileLength()));
+        }
+
+        return fileInfos;
+    }
 
     private Descriptor getDescriptor(int descriptorIndex) {
         ioSystem.readBlock(1 + descriptorIndex * DESCRIPTOR_SIZE / buffer.length(), buffer);

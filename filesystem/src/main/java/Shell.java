@@ -54,6 +54,7 @@ public class Shell {
                 lseek(args);
                 break;
             case "dr":
+                directory(args);
                 break;
             case "in":
                 break;
@@ -175,5 +176,23 @@ public class Shell {
         } catch (NumberFormatException e) {
             System.out.println("Error");
         }
+    }
+
+    public void directory(List<String> args) {
+        if (args.size() != 0) {
+            System.out.println("error");
+        }
+
+        List<Pair<String, Integer>> fileInfos = fileSystem.directory();
+
+        if (fileInfos.size() > 0) {
+            for (var fileInfo: fileInfos) {
+                System.out.printf("%-5s %-5d\n", fileInfo.getFirstValue(), fileInfo.getSecondValue());
+            }
+        }
+        else {
+            System.out.println("directory is empty");
+        }
+
     }
 }
