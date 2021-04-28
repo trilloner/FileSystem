@@ -79,10 +79,49 @@ public class FileSystem {
         return true;
     }
 
+    public boolean destroy(UnsignedByteArray fName) {
+        fName = fName.fillToLength(INT_SIZE);
+        lseek(0, 0);
+
+        if (searchDirectory(fName) == -1) {
+            System.out.println("Error: File not created");
+            return false;
+        }
+        read(0, buffer, FILENAME_SIZE + INT_SIZE);
+
+        int descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
+        for (int i = 1; i < MAX_OPEN_FILES; i++) {
+            if (openFileTables[i].getDescriptorIndex() == descriptorIndex) {
+                System.out.println("File opened!");
+                return false;
+            }
+        }
+
+        ioSystem.readBlock(0, buffer);
+        IntArray bufferAsIntArray = buffer.asIntArray();
+
+        Descriptor descriptor = getDescriptor(descriptorIndex);
+        descriptor.setFileLength(-1);
+        for (int i = 0; i < 3; i++) {
+            int blockIndex = descriptor.getBlockIndex(i);
+            if (blockIndex != NOT_ALLOCATED_INDEX) {
+                bufferAsIntArray.set(blockIndex / INT_BITSIZE, bufferAsIntArray.get(blockIndex / INT_BITSIZE) & MASK2[blockIndex % INT_BITSIZE]);
+                descriptor.setBlockIndex(i, NOT_ALLOCATED_INDEX);
+            }
+        }
+        setDescriptor(descriptorIndex, descriptor);
+
+        ioSystem.writeBlock(0, buffer);
+
+        searchDirectory(fName);
+        write(0, new UnsignedByteArray(FILENAME_SIZE + INT_SIZE), FILENAME_SIZE + INT_SIZE);
+
+        return true;
+    }
+
     public int open(UnsignedByteArray fName) {
         fName = fName.fillToLength(FILENAME_SIZE);
         lseek(0, 0);
-        int descriptorIndex;
 
         int directoryIndex = searchDirectory(fName);
 
@@ -92,7 +131,7 @@ public class FileSystem {
         }
 
         read(0, buffer, FILENAME_SIZE + INT_SIZE);
-        descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
+        int descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
         Descriptor descriptor = getDescriptor(descriptorIndex);
 
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
