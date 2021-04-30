@@ -125,7 +125,7 @@ public class FileSystem {
 
         int directoryIndex = searchDirectory(fName);
 
-        if (directoryIndex == openFileTables[0].getLength()) {
+        if (directoryIndex == -1) {
             System.out.println("err: File not already exists");
             return -1;
         }
@@ -305,7 +305,7 @@ public class FileSystem {
             tempCount--;
             i++;
         }
-        return count;
+        return tempCount == 0 ? count : count - tempCount;
     }
 
     public int lseek(int index, int pos) {
