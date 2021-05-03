@@ -1,27 +1,22 @@
-import array.IntArray;
 import array.UnsignedByteArray;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class FileSystem {
-
     private IOSystem ioSystem;
+    private Bitmap bitmap;
     private OpenFileTable[] openFileTables;
     private UnsignedByteArray buffer;
     private static final int MAX_OPEN_FILES = 4;
     private static final int DESCRIPTOR_SIZE = 4;
     private static final int FILENAME_SIZE = 4;
-    private static final int INT_SIZE = 4;
-    private static final int NOT_ALLOCATED_INDEX = 255;
-    private static final int INT_BITSIZE = 32;
-    private static final int[] MASK = createMask();
-    private static final int[] MASK2 = createMask2();
+    static final int NOT_ALLOCATED_INDEX = 255;
 
 
     public FileSystem(int length, int bufferSize) {
-
         ioSystem = new IOSystem(length, bufferSize);
+        bitmap = new Bitmap(ioSystem);
         openFileTables = new OpenFileTable[MAX_OPEN_FILES];
         buffer = new UnsignedByteArray(bufferSize);
 
@@ -33,23 +28,6 @@ public class FileSystem {
         setDescriptor(0, new Descriptor(0,
                 new int[]{NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
 
-    }
-
-    private static int[] createMask() {
-        int[] mask = new int[INT_BITSIZE];
-        mask[INT_BITSIZE - 1] = 1;
-        for (int i = INT_BITSIZE - 2; i >= 0; i--) {
-            mask[i] = mask[i + 1] << 1;
-        }
-        return mask;
-    }
-
-    private static int[] createMask2() {
-        int[] mask2 = new int[INT_BITSIZE];
-        for (int i = 0; i < INT_BITSIZE; i++) {
-            mask2[i] = ~FileSystem.MASK[i];
-        }
-        return mask2;
     }
 
     public boolean create(UnsignedByteArray fName) {
@@ -71,7 +49,7 @@ public class FileSystem {
         allocDirectory();
 
         write(0, fName, fName.length());
-        write(0, UnsignedByteArray.fromInt(descriptorIndex), INT_SIZE);
+        write(0, UnsignedByteArray.fromInt(descriptorIndex), Integer.BYTES);
 
         setDescriptor(descriptorIndex, new Descriptor(
                 0, new int[]{NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
@@ -80,16 +58,16 @@ public class FileSystem {
     }
 
     public boolean destroy(UnsignedByteArray fName) {
-        fName = fName.fillToLength(INT_SIZE);
+        fName = fName.fillToLength(FILENAME_SIZE);
         lseek(0, 0);
 
         if (searchDirectory(fName) == -1) {
             System.out.println("err: File not created");
             return false;
         }
-        read(0, buffer, FILENAME_SIZE + INT_SIZE);
+        read(0, buffer, FILENAME_SIZE + Integer.BYTES);
 
-        int descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
+        int descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + Integer.BYTES).toInt();
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == descriptorIndex) {
                 System.out.println("File opened!");
@@ -98,14 +76,13 @@ public class FileSystem {
         }
 
         ioSystem.readBlock(0, buffer);
-        IntArray bufferAsIntArray = buffer.asIntArray();
 
         Descriptor descriptor = getDescriptor(descriptorIndex);
         descriptor.setFileLength(-1);
         for (int i = 0; i < 3; i++) {
             int blockIndex = descriptor.getBlockIndex(i);
             if (blockIndex != NOT_ALLOCATED_INDEX) {
-                bufferAsIntArray.set(blockIndex / INT_BITSIZE, bufferAsIntArray.get(blockIndex / INT_BITSIZE) & MASK2[blockIndex % INT_BITSIZE]);
+                bitmap.setBlockIndexFree(blockIndex);
                 descriptor.setBlockIndex(i, NOT_ALLOCATED_INDEX);
             }
         }
@@ -114,7 +91,7 @@ public class FileSystem {
         ioSystem.writeBlock(0, buffer);
 
         searchDirectory(fName);
-        write(0, new UnsignedByteArray(FILENAME_SIZE + INT_SIZE), FILENAME_SIZE + INT_SIZE);
+        write(0, new UnsignedByteArray(FILENAME_SIZE + Integer.BYTES), FILENAME_SIZE + Integer.BYTES);
 
         return true;
     }
@@ -130,8 +107,8 @@ public class FileSystem {
             return -1;
         }
 
-        read(0, buffer, FILENAME_SIZE + INT_SIZE);
-        int descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + INT_SIZE).toInt();
+        read(0, buffer, FILENAME_SIZE + Integer.BYTES);
+        int descriptorIndex = buffer.subArray(FILENAME_SIZE, FILENAME_SIZE + Integer.BYTES).toInt();
         Descriptor descriptor = getDescriptor(descriptorIndex);
 
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
@@ -191,10 +168,10 @@ public class FileSystem {
         UnsignedByteArray temp = new UnsignedByteArray(8);
 
         while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
-            read(0, temp, FILENAME_SIZE + INT_SIZE);
+            read(0, temp, FILENAME_SIZE + Integer.BYTES);
 
             if (dName.equals(temp.subArray(FILENAME_SIZE))) {
-                lseek(0, openFileTables[0].getCurrentPosition() - FILENAME_SIZE - INT_SIZE);
+                lseek(0, openFileTables[0].getCurrentPosition() - FILENAME_SIZE - Integer.BYTES);
                 return openFileTables[0].getCurrentPosition();
             }
         }
@@ -282,15 +259,12 @@ public class FileSystem {
                 if (status > 1) {
                     ioSystem.writeBlock(descriptor.getBlockIndex(status - 2), openFileTables[index].getBuffer());
                 }
-                freeBlockIndex = readBitmapAndGetFreeBlockIndex();
+                freeBlockIndex = bitmap.getFreeBlockIndex();
                 if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
                     return tempCount;
                 }
 
-                IntArray bufferAsIntArray = buffer.asIntArray();
-                bufferAsIntArray.set(freeBlockIndex / 32, bufferAsIntArray.get(freeBlockIndex / 32) | MASK[freeBlockIndex % 32]);
-
-                ioSystem.writeBlock(0, buffer);
+                bitmap.setBlockIndexTaken(freeBlockIndex);
 
                 descriptor.setBlockIndex(status - 1, freeBlockIndex);
                 descriptor.setFileLength(openFileTables[index].getCurrentPosition());
@@ -310,15 +284,15 @@ public class FileSystem {
 
     public int lseek(int index, int pos) {
         if (index > (MAX_OPEN_FILES - 1) || index < 0) {
-            System.out.println("Lseek: Index out of bound.");
+            System.out.println("lseek: file index is out of range");
             return -1;
         }
         if (openFileTables[index].getDescriptorIndex() == -1) {
-            System.out.println("Lseek: File not opened.");
+            System.out.println("lseek: file is not opened");
             return -1;
         }
         if (openFileTables[index].getLength() + 1 < pos || pos < 0 || pos == buffer.length() * 3) {
-            System.out.println("Lseek: Out of index.");
+            System.out.println("position is out of range");
             return -1;
         }
 
@@ -330,11 +304,10 @@ public class FileSystem {
 
         if (status == 0) {
             ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
-        } else {
-            if (status != 1 && status != -1) {
-                ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock - 1), openFileTables[index].getBuffer());
-            }
+        } else if (status != 1 && status != -1) {
+            ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock - 1), openFileTables[index].getBuffer());
         }
+
         openFileTables[index].seek(pos);
         status = openFileTables[index].getStatus();
         currentBlock = openFileTables[index].getCurrentBlock();
@@ -380,21 +353,5 @@ public class FileSystem {
         }
 
         ioSystem.writeBlock(blockIndex, buffer);
-    }
-
-    private int readBitmapAndGetFreeBlockIndex() {
-        ioSystem.readBlock(0, buffer);
-        IntArray bufferAsIntArray = buffer.asIntArray();
-
-        for (int k = 7; k < ioSystem.getLength(); k++) {
-            int i = k / INT_BITSIZE;
-            int j = k % INT_BITSIZE;
-
-            if ((bufferAsIntArray.get(i) & MASK[j]) == 0) {
-                return k;
-            }
-        }
-
-        return NOT_ALLOCATED_INDEX;
     }
 }
