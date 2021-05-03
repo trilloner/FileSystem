@@ -1,6 +1,7 @@
 package array;
 
 import java.nio.ByteBuffer;
+import java.util.function.Predicate;
 
 public class UnsignedByteArray {
     private final byte[] array;
@@ -123,6 +124,16 @@ public class UnsignedByteArray {
             stringBuilder.append((char)this.get(i));
         }
         return stringBuilder.toString();
+    }
+
+    public boolean all(Predicate<Integer> condition) {
+        for (int i = 0; i < this.length(); i++) {
+            if (!condition.test(this.get(i)))  {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     @Override

@@ -352,19 +352,10 @@ public class FileSystem {
         while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
             read(0, memArea, FILENAME_SIZE + DESCRIPTOR_SIZE);
 
-            boolean isInfoEmpty = true;
-
-            for (int i = 0; i < FILENAME_SIZE + INT_SIZE; i++) {
-                if (memArea.get(i) != 0) {
-                    isInfoEmpty = false;
-                    break;
-                }
-            }
-
-            if (!isInfoEmpty) {
+            if (!memArea.all(value -> value == 0)) {
                 String name = memArea.subArray(FILENAME_SIZE).toAsciiString();
-                Descriptor descriptor = new Descriptor(memArea.subArray(FILENAME_SIZE, FILENAME_SIZE + DESCRIPTOR_SIZE));
-                fileInfos.add(new Pair<>(name, descriptor.getFileLength()));
+                int descriptorIndex = memArea.subArray(FILENAME_SIZE, FILENAME_SIZE + DESCRIPTOR_SIZE).toInt();
+                fileInfos.add(new Pair<>(name, getDescriptor(descriptorIndex).getFileLength()));
             }
         }
 
