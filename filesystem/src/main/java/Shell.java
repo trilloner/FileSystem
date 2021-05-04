@@ -58,8 +58,10 @@ public class Shell {
                 directory(args);
                 break;
             case "in":
+                init(args);
                 break;
             case "sv":
+                save(args);
                 break;
             default:
                 System.out.println("unknown command");
@@ -205,6 +207,34 @@ public class Shell {
         if (fileSystem.destroy(filename)) {
             System.out.printf("file %s destroyed\n", filename.toAsciiString());
         } else {
+            System.out.println("error");
+        }
+    }
+
+    public void init(List<String> args) {
+        if (args.size() != 1) {
+            System.out.println("error");
+        }
+
+        String filename = args.get(0);
+        if (fileSystem.init(filename)) {
+            System.out.println("disk restored");
+        }
+        else {
+            System.out.println("error");
+        }
+    }
+
+    public void save(List<String> args) {
+        if (args.size() != 1) {
+            System.out.println("error");
+        }
+
+        String filename = args.get(0);
+        if (fileSystem.save(filename)) {
+            System.out.println("disk saved");
+        }
+        else {
             System.out.println("error");
         }
     }

@@ -29,6 +29,11 @@ public class Bitmap {
     public Bitmap(IOSystem ioSystem) {
         this.ioSystem = ioSystem;
         this.buffer = new UnsignedByteArray(ioSystem.getLength() / Byte.SIZE);
+        refresh();
+    }
+
+    public void refresh() {
+        ioSystem.readBlock(0, buffer);
     }
 
     public int getFreeBlockIndex() {

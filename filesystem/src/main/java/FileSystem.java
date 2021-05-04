@@ -1,7 +1,12 @@
 import array.UnsignedByteArray;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Scanner;
 
 public class FileSystem {
     private IOSystem ioSystem;
@@ -29,6 +34,63 @@ public class FileSystem {
                 new int[]{NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX, NOT_ALLOCATED_INDEX}));
 
     }
+
+
+    public boolean save(String filename) {
+        for (int i = 1; i < openFileTables.length; i++) {
+            if (openFileTables[i].getDescriptorIndex() != -1) {
+                close(i);
+            }
+        }
+
+        lseek(0, 0);
+
+        try (var writer = new FileWriter(filename)) {
+            writer.write(String.format("%d\n", openFileTables[0].getLength()));
+
+            for (int i = 0; i < ioSystem.getLength(); i++) {
+                ioSystem.readBlock(i, buffer);
+                for (int j = 0; j < buffer.length(); j++) {
+                    writer.write(String.format("%-3d ", buffer.get(j)));
+                }
+                writer.write("\n");
+            }
+
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    public boolean init(String filename) {
+        try (var reader = new Scanner(new File(filename))) {
+            int directoryLength = 0;
+            if (reader.hasNextLine()) {
+                directoryLength = Integer.parseInt(reader.nextLine());
+            }
+
+            int i = 0;
+            while (reader.hasNextLine()) {
+                Integer[] block = Arrays.stream(reader.nextLine().split(" "))
+                        .filter(s -> !s.equals("")).map(Integer::parseInt).toArray(Integer[]::new);
+                for (int j = 0; j < block.length; j++) {
+                    buffer.set(j, block[j]);
+                }
+                ioSystem.writeBlock(i, buffer);
+                i++;
+            }
+
+            bitmap.refresh();
+            openFileTables[0].init(0, directoryLength);
+
+            return true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
 
     public boolean create(UnsignedByteArray fName) {
 
@@ -75,20 +137,16 @@ public class FileSystem {
             }
         }
 
-        ioSystem.readBlock(0, buffer);
-
         Descriptor descriptor = getDescriptor(descriptorIndex);
-        descriptor.setFileLength(-1);
+        descriptor.setFileLength(0);
         for (int i = 0; i < 3; i++) {
             int blockIndex = descriptor.getBlockIndex(i);
             if (blockIndex != NOT_ALLOCATED_INDEX) {
                 bitmap.setBlockIndexFree(blockIndex);
-                descriptor.setBlockIndex(i, NOT_ALLOCATED_INDEX);
             }
+            descriptor.setBlockIndex(i, 0);
         }
         setDescriptor(descriptorIndex, descriptor);
-
-        ioSystem.writeBlock(0, buffer);
 
         searchDirectory(fName);
         write(0, new UnsignedByteArray(FILENAME_SIZE + Integer.BYTES), FILENAME_SIZE + Integer.BYTES);
