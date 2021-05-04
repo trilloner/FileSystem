@@ -163,14 +163,14 @@ public class FileSystem {
         }
     }
 
-    private int searchDirectory(UnsignedByteArray dName) {
+    private int searchDirectory(UnsignedByteArray fName) {
         lseek(0, 0);
         UnsignedByteArray temp = new UnsignedByteArray(8);
 
         while (openFileTables[0].getCurrentPosition() < openFileTables[0].getLength()) {
             read(0, temp, FILENAME_SIZE + Integer.BYTES);
 
-            if (dName.equals(temp.subArray(FILENAME_SIZE))) {
+            if (fName.equals(temp.subArray(FILENAME_SIZE))) {
                 lseek(0, openFileTables[0].getCurrentPosition() - FILENAME_SIZE - Integer.BYTES);
                 return openFileTables[0].getCurrentPosition();
             }
@@ -347,10 +347,7 @@ public class FileSystem {
         ioSystem.readBlock(blockIndex, buffer);
 
         int descriptorIndexInBuffer = descriptorIndex * DESCRIPTOR_SIZE % buffer.length();
-        buffer.set(descriptorIndexInBuffer, descriptor.getFileLength());
-        for (int i = descriptorIndexInBuffer + 1, j = 0; j < DESCRIPTOR_SIZE - 1; i++, j++) {
-            buffer.set(i, descriptor.getBlockIndex(j));
-        }
+        buffer.setSubArray(descriptorIndexInBuffer, descriptor.asUnsignedByteArray());
 
         ioSystem.writeBlock(blockIndex, buffer);
     }

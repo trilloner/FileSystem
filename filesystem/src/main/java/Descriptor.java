@@ -29,4 +29,8 @@ public class Descriptor {
     public int getBlockIndex(int blockNumber) {
         return array.get(1 + blockNumber);
     }
+
+    public UnsignedByteArray asUnsignedByteArray() {
+        return array;
+    }
 }

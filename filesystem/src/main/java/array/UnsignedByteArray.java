@@ -91,6 +91,12 @@ public class UnsignedByteArray {
         return array;
     }
 
+    public void setSubArray(int index, UnsignedByteArray data) {
+        for (int i = 0, j = index; i < data.length(); i++, j++) {
+            this.set(j, data.get(i));
+        }
+    }
+
     public UnsignedByteArray subArray(int toIndex) {
         return subArray(0, toIndex);
     }
