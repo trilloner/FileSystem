@@ -184,6 +184,7 @@ public class Shell {
     public void directory(List<String> args) {
         if (args.size() != 0) {
             System.out.println("error");
+            return;
         }
 
         List<Pair<String, Integer>> fileInfos = fileSystem.directory();
@@ -201,6 +202,7 @@ public class Shell {
     public void destroy(List<String> args) {
         if (args.size() != 1) {
             System.out.println("error");
+            return;
         }
 
         var filename = new UnsignedByteArray(args.get(0));
@@ -214,6 +216,7 @@ public class Shell {
     public void init(List<String> args) {
         if (args.size() != 1) {
             System.out.println("error");
+            return;
         }
 
         String filename = args.get(0);
@@ -228,6 +231,7 @@ public class Shell {
     public void save(List<String> args) {
         if (args.size() != 1) {
             System.out.println("error");
+            return;
         }
 
         String filename = args.get(0);

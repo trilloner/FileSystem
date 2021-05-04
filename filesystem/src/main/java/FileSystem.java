@@ -179,6 +179,9 @@ public class FileSystem {
         for (int i = 1; i < MAX_OPEN_FILES; i++) {
             if (openFileTables[i].getDescriptorIndex() == -1) {
                 openFileTables[i].init(descriptorIndex, descriptor.getFileLength());
+                if (descriptor.getFileLength() != 0){
+                    ioSystem.readBlock(descriptor.getBlockIndex(0), openFileTables[i].getBuffer());
+                }
                 return i;
             }
         }
@@ -282,7 +285,7 @@ public class FileSystem {
             i++;
             tempCount--;
         }
-        return count;
+        return tempCount == 0 ? count : count - tempCount;
     }
 
     public int write(int index, UnsignedByteArray memArea, int count) {
