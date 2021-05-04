@@ -1,17 +1,22 @@
 import array.UnsignedByteArray;
 
 public class OpenFileTable {
+    private static final int DEFAULT_VALUE = 0;
+
     private int currentPosition;
     private UnsignedByteArray buffer;
     private int descriptorIndex;
     private int length;
-    private static final int DEFAULT_VALUE = 0;
+    private boolean isRead;
+    private boolean isWritten;
 
     public OpenFileTable(int bufferSize) {
         this.buffer = new UnsignedByteArray(bufferSize);
         this.currentPosition = -1;
         this.descriptorIndex = -1;
         this.length = -1;
+        this.isRead = false;
+        this.isWritten = false;
     }
 
     public void init() {
@@ -24,6 +29,8 @@ public class OpenFileTable {
         this.currentPosition = 0;
         this.descriptorIndex = descriptorIndex;
         this.length = length;
+        this.isRead = false;
+        this.isWritten = false;
     }
 
     public void initBuffer() {
@@ -39,10 +46,6 @@ public class OpenFileTable {
         return getStatus();
     }
 
-    public int readByte(UnsignedByteArray bytes) {
-        return readByte(bytes, 0);
-    }
-
     public int writeByte(int b) {
         buffer.set(currentPosition % buffer.length(), b);
         currentPosition++;
@@ -52,10 +55,6 @@ public class OpenFileTable {
         }
 
         return getStatus();
-    }
-
-    public int writeByte(UnsignedByteArray bytes) {
-        return writeByte(bytes.get(0));
     }
 
     public boolean seek(int index) {
@@ -86,6 +85,22 @@ public class OpenFileTable {
         return currentPosition / buffer.length();
     }
 
+    public boolean isRead() {
+        return isRead;
+    }
+
+    public void setRead(boolean read) {
+        isRead = read;
+    }
+
+    public boolean isWritten() {
+        return isWritten;
+    }
+
+    public void setWritten(boolean written) {
+        isWritten = written;
+    }
+
     public int getStatus() {
 
         if (currentPosition == buffer.length() * 3) // max length of file (3 block)
@@ -105,4 +120,5 @@ public class OpenFileTable {
         else
             return 0;
     }
+
 }

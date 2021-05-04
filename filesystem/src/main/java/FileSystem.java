@@ -217,7 +217,9 @@ public class FileSystem {
                 currentBlock--;
             }
 
-            ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
+            if (openFileTables[index].isWritten()) {
+                ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
+            }
 
             openFileTables[index].init();
             return index;
@@ -262,7 +264,6 @@ public class FileSystem {
     }
 
     public int read(int index, UnsignedByteArray memArea, int count) {
-        int i = 0;
         if (index > 3 || index < 0) {
             System.out.println("Read: Out of bound exception.");
             return -1;
@@ -271,21 +272,32 @@ public class FileSystem {
             System.out.println("Read: Count cannot be negative.");
             return -1;
         }
-        int tempCount = count;
+
+        int i = 0;
         int status = openFileTables[index].getStatus();
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         Descriptor descriptor = getDescriptor(descriptorIndex);
 
-        while ((status <= 0) && tempCount > 0
+        while ((status <= 0) && i < count
                 && (openFileTables[index].getCurrentPosition() < openFileTables[index].getLength())) {
             if (status < 0) {
+                if (openFileTables[index].isWritten()) {
+                    ioSystem.writeBlock(descriptor.getBlockIndex(openFileTables[index].getCurrentBlock()), openFileTables[index].getBuffer());
+                    openFileTables[index].setWritten(false);
+                }
                 ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
+                openFileTables[index].setRead(true);
             }
+            else if (!openFileTables[index].isRead()) {
+                ioSystem.readBlock(descriptor.getBlockIndex(openFileTables[index].getCurrentBlock()), openFileTables[index].getBuffer());
+                openFileTables[index].setRead(true);
+            }
+
             status = openFileTables[index].readByte(memArea, i);
             i++;
-            tempCount--;
         }
-        return tempCount == 0 ? count : count - tempCount;
+
+        return i;
     }
 
     public int write(int index, UnsignedByteArray memArea, int count) {
@@ -302,27 +314,30 @@ public class FileSystem {
             return -1;
         }
 
-        int tempCount = count;
-
         int status = openFileTables[index].getStatus();
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         Descriptor descriptor = getDescriptor(descriptorIndex);
         int freeBlockIndex;
         int i = 0;
 
-        while (status != 4 && tempCount > 0) {
+        while (status != 4 && i < count) {
             if (status < 0) {
-                if (status < -1) {
+                if (status < -1 && openFileTables[index].isWritten()) {
                     ioSystem.writeBlock(descriptor.getBlockIndex(-1 * status - 2), openFileTables[index].getBuffer());
+                    openFileTables[index].setWritten(false);
                 }
+
                 ioSystem.readBlock(descriptor.getBlockIndex(-1 * status - 1), openFileTables[index].getBuffer());
+                openFileTables[index].setRead(true);
             } else if (status > 0) {
-                if (status > 1) {
+                if (status > 1 && openFileTables[index].isWritten()) {
                     ioSystem.writeBlock(descriptor.getBlockIndex(status - 2), openFileTables[index].getBuffer());
+                    openFileTables[index].setWritten(false);
                 }
+
                 freeBlockIndex = bitmap.getFreeBlockIndex();
                 if (freeBlockIndex == NOT_ALLOCATED_INDEX) {
-                    return tempCount;
+                    return i;
                 }
 
                 bitmap.setBlockIndexTaken(freeBlockIndex);
@@ -330,17 +345,23 @@ public class FileSystem {
                 descriptor.setBlockIndex(status - 1, freeBlockIndex);
                 descriptor.setFileLength(openFileTables[index].getCurrentPosition());
                 setDescriptor(descriptorIndex, descriptor);
-                openFileTables[index].initBuffer();
+                openFileTables[index].setRead(false);
             }
+            if (!openFileTables[index].isRead()) {
+                ioSystem.readBlock(descriptor.getBlockIndex(openFileTables[index].getCurrentBlock()), openFileTables[index].getBuffer());
+                openFileTables[index].setRead(true);
+            }
+
             if (memArea.length() <= i) {
                 status = openFileTables[index].writeByte(memArea.get(memArea.length() - 1));
             } else {
                 status = openFileTables[index].writeByte(memArea.get(i));
             }
-            tempCount--;
+            openFileTables[index].setWritten(true);
             i++;
         }
-        return tempCount == 0 ? count : count - tempCount;
+
+        return i;
     }
 
     public int lseek(int index, int pos) {
@@ -360,22 +381,25 @@ public class FileSystem {
         int descriptorIndex = openFileTables[index].getDescriptorIndex();
         Descriptor descriptor = getDescriptor(descriptorIndex);
 
-        int currentBlock = openFileTables[index].getCurrentBlock();
-        int status = openFileTables[index].getStatus();
-
-        if (status == 0) {
-            ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
-        } else if (status != 1 && status != -1) {
-            ioSystem.writeBlock(descriptor.getBlockIndex(currentBlock - 1), openFileTables[index].getBuffer());
-        }
+        int prevBlock = openFileTables[index].getCurrentBlock();
+        int prevStatus = openFileTables[index].getStatus();
 
         openFileTables[index].seek(pos);
-        status = openFileTables[index].getStatus();
-        currentBlock = openFileTables[index].getCurrentBlock();
-        if (status <= 0) {
-            ioSystem.readBlock(descriptor.getBlockIndex(currentBlock), openFileTables[index].getBuffer());
+
+        int status = openFileTables[index].getStatus();
+
+        if (status <= 0 && openFileTables[index].isWritten()) {
+            if (prevStatus == 0) {
+                ioSystem.writeBlock(descriptor.getBlockIndex(prevBlock), openFileTables[index].getBuffer());
+            } else if (prevStatus != 1 && prevStatus != -1) {
+                ioSystem.writeBlock(descriptor.getBlockIndex(prevBlock - 1), openFileTables[index].getBuffer());
+            }
+
+            openFileTables[index].setWritten(false);
+            openFileTables[index].setRead(false);
         }
-        return pos;
+
+        return openFileTables[index].getCurrentPosition();
     }
 
     public List<Pair<String, Integer>> directory() {
