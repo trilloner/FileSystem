@@ -108,7 +108,10 @@ public class FileSystem {
             return false;
         }
 
-        allocDirectory();
+        if (!allocDirectory()) {
+            System.out.println("err: Directory is full");
+            return false;
+        }
 
         write(0, fName, fName.length());
         write(0, UnsignedByteArray.fromInt(descriptorIndex), Integer.BYTES);
@@ -250,15 +253,12 @@ public class FileSystem {
         return -1;
     }
 
-    private int allocDirectory() {
+    private boolean allocDirectory() {
         lseek(0, 0);
         UnsignedByteArray temp = new UnsignedByteArray(FILENAME_SIZE);
         searchDirectory(temp);
 
-        if (openFileTables[0].getCurrentPosition() == buffer.length()) {
-            return -1;
-        }
-        return openFileTables[0].getCurrentPosition();
+        return openFileTables[0].getCurrentPosition() < buffer.length() * 3;
     }
 
     public int read(int index, UnsignedByteArray memArea, int count) {
